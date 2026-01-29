@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Env / IDE
+.env
+.venv/
+venv/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# NetBox / Docker (локальные переопределения, если не хотите коммитить)
+# docker-compose.override.yml

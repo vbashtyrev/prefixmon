@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prefixmon"
+version = "0.1.0"
+description = "Prefix monitoring plugin for NetBox (cloud subnets, Zabbix LLD)"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+prefixmon = ["templates/**", "migrations/**"]

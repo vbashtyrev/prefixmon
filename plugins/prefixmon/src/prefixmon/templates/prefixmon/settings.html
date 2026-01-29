@@ -1,0 +1,36 @@
+{% extends 'base/layout.html' %}
+
+{% block title %}Prefixmon Settings{% endblock title %}
+
+{% block content %}
+  <div class="card">
+    <div class="card-header">
+      <h5 class="card-title mb-0">Plugin settings</h5>
+    </div>
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.tag_slug.id_for_label }}">Tag slug</label>
+          {{ form.tag_slug }}
+          <div class="form-text">Выбор из существующих Tags (используется slug).</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.vrf_name.id_for_label }}">VRF name</label>
+          {{ form.vrf_name }}
+          <div class="form-text">Выбор из существующих VRF (используется name).</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.address_family.id_for_label }}">Address family</label>
+          {{ form.address_family }}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.low_free_threshold.id_for_label }}">Low free threshold</label>
+          {{ form.low_free_threshold }}
+          <div class="form-text">Подсветка строки и <code>{#LOW_FREE}</code>, если free ≤ threshold.</div>
+        </div>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </form>
+    </div>
+  </div>
+{% endblock content %}
