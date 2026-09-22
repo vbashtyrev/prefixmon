@@ -1,20 +1,19 @@
 # Prefixmon
 
-NetBox-плагин для мониторинга префиксов: отображение подсетей по тегу и VRF, расчёт свободных адресов и утилизации, эндпоинты в формате Zabbix LLD.
+NetBox-плагин для мониторинга префиксов: отображение подсетей по тегу и VRF, расчёт свободных адресов и утилизации. Для Zabbix в репозитории есть рабочий шаблон и external script (как на сервере).
 
 ## Возможности
 
 - **Страница Cloud Subnets** — таблица префиксов с колонками: Prefix, Regions, всего адресов, свободно, Utilization (прогресс-бар). Подсветка строк при «мало свободных» адресов (порог настраивается).
 - **Настройки в UI** — tag slug, VRF name, address family (IPv4/IPv6), порог «мало свободных»; выбор тега и VRF из существующих в NetBox.
-- **Эндпоинты для Zabbix:**
-  - **Discovery** — JSON со списком всех подходящих префиксов (LLD).
-  - **Details** — JSON по одному префиксу (`?prefix=10.0.1.0/24`).
+- **Zabbix** — шаблон `NetBox` (Zabbix 7.0) и внешний скрипт `prefixmon_lld.py`. Скрипт обнаруживает сети по локациям, считает свободные IP-адреса и создаёт предупреждение при малом остатке.
 
 Учёт доступных адресов как в NetBox: для IPv4 без pool — минус сетевой и broadcast; для /31 — оба адреса (RFC 3021); для /32 — один.
 
 ## Требования
 
 - NetBox 4.4+ (проверено с NetBox 4.4.5, netbox-docker 3.4.1)
+- Zabbix 7.0 (шаблон экспортирован с рабочего сервера)
 - Установка через [netbox-docker](https://github.com/netbox-community/netbox-docker) с кастомным образом (см. [Using Netbox Plugins](https://github.com/netbox-community/netbox-docker/wiki/Using-Netbox-Plugins))
 
 ## Установка в netbox-docker
@@ -95,78 +94,116 @@ NetBox-плагин для мониторинга префиксов: отобр
 |--------------------|-----|
 | Cloud Subnets      | `/plugins/prefixmon/cloud-subnets/` |
 | Settings           | `/plugins/prefixmon/settings/` (только superuser) |
-| Discovery (Zabbix) | `/plugins/prefixmon/cloud-subnets/discovery/` |
-| Details (Zabbix)   | `/plugins/prefixmon/cloud-subnets/details/?prefix=10.0.1.0/24` |
+| Discovery (JSON)   | `/plugins/prefixmon/cloud-subnets/discovery/` |
+| Details (JSON)     | `/plugins/prefixmon/cloud-subnets/details/?prefix=10.0.1.0/24` |
 
 Если пункты плагина не видны в боковом меню NetBox, используйте прямые ссылки и добавьте их в закладки.
 
 ## Интеграция с Zabbix
 
-### Discovery (LLD)
+Рабочая схема — **внешняя проверка на сервере Zabbix**, а не запрос к страницам плагина.
 
-- **Тип:** HTTP-агент или скрипт, возвращающий JSON.
-- **URL:** `http://<netbox>:8000/plugins/prefixmon/cloud-subnets/discovery/`
-- **Аутентификация:** нужна авторизация NetBox (логин/пароль или токен в заголовке, в зависимости от настроек).
+Внешняя проверка — это запуск скрипта самим сервером Zabbix. Скрипт читает REST API (программный интерфейс NetBox) и выбирает только:
 
-Пример ответа:
+- IPv4 — адреса четвёртой версии протокола IP;
+- сети с тегом `cloud-subnet`;
+- сети в VRF `internet` — отдельной таблице маршрутизации.
+
+Занятыми считаются только созданные в NetBox IP-адреса. Вложенные сети и диапазоны адресов в этот показатель не входят. Шаблон использует LLD (автоматическое обнаружение объектов) по локациям.
+
+Файлы в репозитории:
+
+| Файл | Назначение |
+|------|------------|
+| `zabbix/prefixmon_lld.py` | External check: `prefixes` или `locations` |
+| `zabbix/zbx_export_templates.json` | Шаблон **NetBox** (экспорт Zabbix 7.0 с рабочего сервера) |
+
+### Установка скрипта на Zabbix-сервер
+
+```bash
+install -m 0755 zabbix/prefixmon_lld.py /usr/lib/zabbix/externalscripts/prefixmon_lld.py
+printf '%s\n' 'YOUR_NETBOX_API_TOKEN' > /usr/lib/zabbix/externalscripts/.netbox.token
+chown zabbix:zabbix /usr/lib/zabbix/externalscripts/.netbox.token
+chmod 600 /usr/lib/zabbix/externalscripts/.netbox.token
+```
+
+Нужен Python 3 и пакет `requests` в окружении, из которого `zabbix_server` запускает external scripts.
+
+Токен читается так (по приоритету):
+
+1. переменная окружения `NETBOX_TOKEN` у процесса `zabbix_server`
+2. файл `/usr/lib/zabbix/externalscripts/.netbox.token`
+
+URL NetBox по умолчанию — `https://netbox.example`, его можно переопределить переменной `NETBOX_URL`.
+
+Пользователю NetBox, которому принадлежит токен, нужны права только на чтение:
+
+- `IPAM → Prefix → View`;
+- `IPAM → IP address → View`.
+
+Токен с включённой записью не требуется. Сам токен в репозиторий не добавляется.
+
+Если NetBox недоступен, токен просрочен или не хватает прав, скрипт завершается с ошибкой. Он не подменяет занятость нулём.
+
+Проверка вручную:
+
+```bash
+sudo -u zabbix /usr/lib/zabbix/externalscripts/prefixmon_lld.py locations
+```
+
+Ожидаемый JSON:
+
 ```json
 {
   "data": [
     {
-      "{#PREFIX}": "10.0.1.0/24",
-      "{#VRF}": "internet",
-      "{#SCOPE}": "Region A",
-      "{#TOTAL}": 254,
-      "{#USED}": 10,
-      "{#FREE}": 244,
-      "{#UTIL}": 3.9,
-      "{#LOW_FREE}": 0
+      "location": "Region A",
+      "total": 2540,
+      "used": 120,
+      "free": 2420,
+      "free_percent": 95.28
     }
   ]
 }
 ```
 
-- **{#PREFIX}** — префикс (CIDR).
-- **{#TOTAL}** — доступное количество адресов (с учётом /24 → 254 и т.д.).
-- **{#FREE}** — свободные адреса.
-- **{#UTIL}** — утилизация, %.
-- **{#LOW_FREE}** — 1, если свободных адресов ≤ порога из настроек плагина.
+Режим `prefixes` в шаблоне не используется: шаблон вызывает только `prefixmon_lld.py[locations]`.
 
-### Элементы данных Zabbix (примеры)
+### Импорт шаблона
 
-- Свободные адреса по префиксу:  
-  Ключ типа `prefixmon.free[{#PREFIX}]`, значение — поле `{#FREE}` из LLD (или запрос к Details по `{#PREFIX}`).
-- Утилизация:  
-  Ключ типа `prefixmon.util[{#PREFIX}]`, значение — `{#UTIL}`.
-- Триггер «мало свободных»:  
-  Условие по `{#LOW_FREE} = 1` или по `prefixmon.free[{#PREFIX}]` ≤ порогу.
+1. **Data collection → Templates → Import** → `zabbix/zbx_export_templates.json`.
+2. Привяжите шаблон **NetBox** к хосту, на котором крутится Zabbix server (external check выполняется локально).
+3. У хоста должен быть разрешён тип **External check**.
 
-### Details по одному префиксу
+Что внутри шаблона:
 
-Для одного префикса тот же формат, но один элемент в `data`:
+| Объект | Ключ | Интервал |
+|--------|------|----------|
+| Master item | `prefixmon_lld.py[locations]` | 1h, timeout 120 секунд |
+| Dependent LLD | `prefixmon_lld` | от master item |
+| Item prototypes | `netbox.location.free[{#LOCATION}]`, `free_percent`, `total`, `used` | dependent |
+| Trigger | `IPv4 free space low ({#LOCATION})` | free &lt; 50 **и** free_percent &lt; 10 за 1h, severity INFO |
+| Graph | `Free IPs location {#LOCATION}` | `free_percent` |
 
-- **URL:** `http://<netbox>:8000/plugins/prefixmon/cloud-subnets/details/?prefix=10.0.1.0/24`  
-  Поддерживается и параметр `free` (алиас): `?free=10.0.1.0/24`.
+LLD-макросы: `{#LOCATION}`, `{#TOTAL}`, `{#USED}`, `{#FREE}`, `{#FREE_PERCENT}`.
 
-Если префикс не найден или не попадает под фильтры (тег, VRF, address family), в ответе будет `{"data": []}`.
+### JSON-эндпоинты плагина (не используются этим шаблоном)
 
-## Структура плагина
+Плагин по-прежнему отдаёт JSON на `/plugins/prefixmon/cloud-subnets/discovery/` и `details/?prefix=...`. Текущий шаблон Zabbix их не вызывает.
+
+## Структура
 
 ```
-plugins/prefixmon/
+plugins/prefixmon/                 # NetBox-плагин
 ├── pyproject.toml
 └── src/prefixmon/
-    ├── __init__.py
-    ├── plugin.py          # PluginConfig
-    ├── models.py          # PluginSettings (singleton)
-    ├── forms.py           # форма настроек (tag, VRF из списков)
-    ├── views.py           # Cloud Subnets, Settings, Discovery, Details
-    ├── urls.py
-    ├── navigation.py      # menu, menu_items
-    ├── migrations/
-    └── templates/prefixmon/
-        ├── cloud_subnets.html
-        └── settings.html
+    ├── plugin.py
+    ├── models.py
+    ├── views.py
+    └── ...
+zabbix/
+├── prefixmon_lld.py               # external script для Zabbix
+└── zbx_export_templates.json      # шаблон NetBox (Zabbix 7.0)
 ```
 
 ## Лицензия

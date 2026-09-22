@@ -1,0 +1,191 @@
+{
+    "zabbix_export": {
+        "version": "7.0",
+        "template_groups": [
+            {
+                "uuid": "a571c0d144b14fd4a87a9d9b2aa9fcd6",
+                "name": "Templates/Applications"
+            }
+        ],
+        "templates": [
+            {
+                "uuid": "5e164677121643bca528ed2c7e5d6cb4",
+                "template": "NetBox",
+                "name": "NetBox",
+                "groups": [
+                    {
+                        "name": "Templates/Applications"
+                    }
+                ],
+                "items": [
+                    {
+                        "uuid": "22acab5b7f884f93ba6424ed3961646f",
+                        "name": "item lld location",
+                        "type": "EXTERNAL",
+                        "key": "prefixmon_lld.py[locations]",
+                        "delay": "1h",
+                        "timeout": "120s",
+                        "trends": "0",
+                        "value_type": "TEXT"
+                    }
+                ],
+                "discovery_rules": [
+                    {
+                        "uuid": "3ee1dd945f7a47bab483b3a052b3bc99",
+                        "name": "NetBox Location Discovery",
+                        "type": "DEPENDENT",
+                        "key": "prefixmon_lld",
+                        "delay": "0",
+                        "item_prototypes": [
+                            {
+                                "uuid": "47fdc8939ac94ba9bbfa4b24e31e214c",
+                                "name": "Free IPs {#LOCATION}",
+                                "type": "DEPENDENT",
+                                "key": "netbox.location.free[{#LOCATION}]",
+                                "delay": "0",
+                                "units": "IP",
+                                "preprocessing": [
+                                    {
+                                        "type": "JSONPATH",
+                                        "parameters": [
+                                            "$.data[?(@.location=='{#LOCATION}')].free.first()"
+                                        ]
+                                    }
+                                ],
+                                "master_item": {
+                                    "key": "prefixmon_lld.py[locations]"
+                                }
+                            },
+                            {
+                                "uuid": "df515d097e554e7d8f93bdee449ab06f",
+                                "name": "Free % IPs {#LOCATION}",
+                                "type": "DEPENDENT",
+                                "key": "netbox.location.free_percent[{#LOCATION}]",
+                                "delay": "0",
+                                "value_type": "FLOAT",
+                                "units": "%",
+                                "preprocessing": [
+                                    {
+                                        "type": "JSONPATH",
+                                        "parameters": [
+                                            "$.data[?(@.location=='{#LOCATION}')].free_percent.first()"
+                                        ]
+                                    }
+                                ],
+                                "master_item": {
+                                    "key": "prefixmon_lld.py[locations]"
+                                }
+                            },
+                            {
+                                "uuid": "d275f93e3390466c9c2aa00ea2acd8ba",
+                                "name": "Total IPs {#LOCATION}",
+                                "type": "DEPENDENT",
+                                "key": "netbox.location.total[{#LOCATION}]",
+                                "delay": "0",
+                                "units": "IP",
+                                "preprocessing": [
+                                    {
+                                        "type": "JSONPATH",
+                                        "parameters": [
+                                            "$.data[?(@.location=='{#LOCATION}')].total.first()"
+                                        ]
+                                    }
+                                ],
+                                "master_item": {
+                                    "key": "prefixmon_lld.py[locations]"
+                                }
+                            },
+                            {
+                                "uuid": "0eabc83071e8478ab0ed8a250456d86e",
+                                "name": "Used IPs {#LOCATION}",
+                                "type": "DEPENDENT",
+                                "key": "netbox.location.used[{#LOCATION}]",
+                                "delay": "0",
+                                "units": "IP",
+                                "preprocessing": [
+                                    {
+                                        "type": "JSONPATH",
+                                        "parameters": [
+                                            "$.data[?(@.location=='{#LOCATION}')].used.first()"
+                                        ]
+                                    }
+                                ],
+                                "master_item": {
+                                    "key": "prefixmon_lld.py[locations]"
+                                }
+                            }
+                        ],
+                        "trigger_prototypes": [
+                            {
+                                "uuid": "7738d2d61ea2404fb3d94032b43f79e9",
+                                "expression": "min(/NetBox/netbox.location.free[{#LOCATION}],1h) < 50\nand\nlast(/NetBox/netbox.location.free_percent[{#LOCATION}]) < 10",
+                                "name": "IPv4 free space low ({#LOCATION})",
+                                "opdata": "Free IPs: {ITEM.LASTVALUE} | Location: {#LOCATION}",
+                                "priority": "INFO",
+                                "tags": [
+                                    {
+                                        "tag": "location",
+                                        "value": "{#LOCATION}"
+                                    },
+                                    {
+                                        "tag": "scope",
+                                        "value": "ipv4"
+                                    },
+                                    {
+                                        "tag": "service",
+                                        "value": "ipam"
+                                    },
+                                    {
+                                        "tag": "source",
+                                        "value": "netbox"
+                                    }
+                                ]
+                            }
+                        ],
+                        "graph_prototypes": [
+                            {
+                                "uuid": "99a1d19c97fd464eb0b9b8017b6d63f0",
+                                "name": "Free IPs location {#LOCATION}",
+                                "graph_items": [
+                                    {
+                                        "color": "1A7C11",
+                                        "calc_fnc": "ALL",
+                                        "item": {
+                                            "host": "NetBox",
+                                            "key": "netbox.location.free_percent[{#LOCATION}]"
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        "master_item": {
+                            "key": "prefixmon_lld.py[locations]"
+                        },
+                        "lld_macro_paths": [
+                            {
+                                "lld_macro": "{#FREE_PERCENT}",
+                                "path": "$.free_percent"
+                            },
+                            {
+                                "lld_macro": "{#FREE}",
+                                "path": "$.free"
+                            },
+                            {
+                                "lld_macro": "{#LOCATION}",
+                                "path": "$.location"
+                            },
+                            {
+                                "lld_macro": "{#TOTAL}",
+                                "path": "$.total"
+                            },
+                            {
+                                "lld_macro": "{#USED}",
+                                "path": "$.used"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}
