@@ -38,7 +38,7 @@
                 <td>
                   <a href="{{ row.prefix.get_absolute_url }}">{{ row.prefix.prefix }}</a>
                 </td>
-                <td>{{ row.prefix.scope|default:"—" }}</td>
+                <td>{{ row.region_name|default:"UNKNOWN" }}</td>
                 <td>{{ row.total_addresses }}</td>
                 <td>
                   {{ row.free_addresses }}
@@ -49,11 +49,11 @@
                 <td style="min-width: 160px;">
                   <div class="progress" style="height: 18px;">
                     {% if row.utilization_percent >= 80 %}
-                      <div class="progress-bar bg-danger" role="progressbar" style="width: {{ row.utilization_percent }}%;" aria-valuenow="{{ row.utilization_percent }}" aria-valuemin="0" aria-valuemax="100">{{ row.utilization_percent }}%</div>
+                      <div class="progress-bar bg-danger" role="progressbar" style="width: {% if row.utilization_percent > 100 %}100{% else %}{{ row.utilization_percent }}{% endif %}%;" aria-valuenow="{{ row.utilization_percent }}" aria-valuemin="0" aria-valuemax="100">{{ row.utilization_percent }}%</div>
                     {% elif row.utilization_percent >= 50 %}
-                      <div class="progress-bar bg-warning" role="progressbar" style="width: {{ row.utilization_percent }}%;" aria-valuenow="{{ row.utilization_percent }}" aria-valuemin="0" aria-valuemax="100">{{ row.utilization_percent }}%</div>
+                      <div class="progress-bar bg-warning" role="progressbar" style="width: {% if row.utilization_percent > 100 %}100{% else %}{{ row.utilization_percent }}{% endif %}%;" aria-valuenow="{{ row.utilization_percent }}" aria-valuemin="0" aria-valuemax="100">{{ row.utilization_percent }}%</div>
                     {% else %}
-                      <div class="progress-bar bg-success" role="progressbar" style="width: {{ row.utilization_percent }}%;" aria-valuenow="{{ row.utilization_percent }}" aria-valuemin="0" aria-valuemax="100">{{ row.utilization_percent }}%</div>
+                      <div class="progress-bar bg-success" role="progressbar" style="width: {% if row.utilization_percent > 100 %}100{% else %}{{ row.utilization_percent }}{% endif %}%;" aria-valuenow="{{ row.utilization_percent }}" aria-valuemin="0" aria-valuemax="100">{{ row.utilization_percent }}%</div>
                     {% endif %}
                   </div>
                 </td>

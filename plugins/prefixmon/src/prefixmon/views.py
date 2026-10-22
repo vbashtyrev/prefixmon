@@ -27,36 +27,55 @@ def _get_db_settings():
     return obj
 
 
-def _get_prefix_stats(prefix_obj):
-    size = getattr(prefix_obj.prefix, "size", 0) or 0
+def _usable_total(prefix_obj):
+    prefix = prefix_obj.prefix
+    size = getattr(prefix, "size", 0) or 0
     is_pool = getattr(prefix_obj, "is_pool", False)
-    version = getattr(prefix_obj.prefix, "version", 4)
+    version = getattr(prefix, "version", 4)
 
-    if version == 4 and not is_pool:
-        if size == 1:
-            total_usable = 1
-        elif size == 2:
-            total_usable = 2
-        else:
-            total_usable = max(0, size - 2)
+    if version == 6:
+        return size
+    if is_pool:
+        return size
+    if prefix.prefixlen >= 31:
+        return size
+    return max(0, size - 2)
+
+
+def _get_region_name(prefix_obj):
+    scope_type = getattr(prefix_obj, "scope_type", None)
+    if scope_type is None:
+        return "UNKNOWN"
+    if f"{scope_type.app_label}.{scope_type.model}" != "dcim.site":
+        return "UNKNOWN"
+    scope = getattr(prefix_obj, "scope", None)
+    if scope is None:
+        return "UNKNOWN"
+    region = getattr(scope, "region", None)
+    if region is None:
+        return "UNKNOWN"
+    name = getattr(region, "name", None)
+    return name if name else "UNKNOWN"
+
+
+def _get_prefix_stats(prefix_obj):
+    IPAddress = apps.get_model("ipam", "IPAddress")
+
+    total_usable = _usable_total(prefix_obj)
+    prefix_str = str(prefix_obj.prefix)
+    vrf_id = getattr(prefix_obj, "vrf_id", None)
+
+    ip_qs = IPAddress.objects.filter(address__net_host_contained=prefix_str)
+    if vrf_id is None:
+        ip_qs = ip_qs.filter(vrf__isnull=True)
     else:
-        total_usable = size
+        ip_qs = ip_qs.filter(vrf_id=vrf_id)
 
-    try:
-        util_pct = prefix_obj.get_utilization()
-        if util_pct is not None and size:
-            used = int(round(size * float(util_pct) / 100))
-            free = max(0, total_usable - used)
-        else:
-            used = 0
-            free = total_usable
-        util_pct = float(util_pct) if util_pct is not None else 0
-    except Exception:
-        used = 0
-        free = total_usable
-        util_pct = 0
+    used = ip_qs.count()
+    free = max(total_usable - used, 0)
+    util_pct = round((used / total_usable) * 100, 1) if total_usable else 0
 
-    return total_usable, used, free, round(util_pct, 1)
+    return total_usable, used, free, util_pct
 
 
 def _get_cloud_prefixes_queryset():
@@ -70,6 +89,7 @@ def _get_cloud_prefixes_queryset():
         Prefix.objects.filter(tags__slug=s.tag_slug)
         .filter(prefix__family=s.address_family)
         .filter(vrf=vrf)
+        .filter(status="active")
         .distinct()
     )
 
@@ -89,6 +109,7 @@ class CloudSubnetsView(LoginRequiredMixin, TemplateView):
             prefix_rows.append(
                 {
                     "prefix": prefix,
+                    "region_name": _get_region_name(prefix),
                     "total_addresses": total_usable,
                     "free_addresses": free,
                     "utilization_percent": util_pct,
@@ -113,6 +134,7 @@ class CloudSubnetsDiscoveryView(LoginRequiredMixin, View):
                     "{#PREFIX}": str(prefix.prefix),
                     "{#VRF}": str(prefix.vrf) if getattr(prefix, "vrf", None) else "",
                     "{#SCOPE}": str(prefix.scope) if getattr(prefix, "scope", None) else "",
+                    "{#REGION}": _get_region_name(prefix),
                     "{#TOTAL}": total_usable,
                     "{#USED}": used,
                     "{#FREE}": free,
@@ -140,6 +162,7 @@ class CloudSubnetDetailView(LoginRequiredMixin, View):
             "{#PREFIX}": str(target.prefix),
             "{#VRF}": str(target.vrf) if getattr(target, "vrf", None) else "",
             "{#SCOPE}": str(target.scope) if getattr(target, "scope", None) else "",
+            "{#REGION}": _get_region_name(target),
             "{#TOTAL}": total_usable,
             "{#USED}": used,
             "{#FREE}": free,
