@@ -55,7 +55,8 @@ def _get_region_name(prefix_obj):
     if region is None:
         return "UNKNOWN"
     name = getattr(region, "name", None)
-    return name if name else "UNKNOWN"
+    display = getattr(region, "display", None)
+    return name or display or "UNKNOWN"
 
 
 def _get_prefix_stats(prefix_obj):

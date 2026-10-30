@@ -62,7 +62,7 @@
                                 "type": "DEPENDENT",
                                 "key": "netbox.location.free_percent[{#LOCATION}]",
                                 "delay": "0",
-                                "value_type": "FLOAT",
+                                "value_type": "UNSIGNED",
                                 "units": "%",
                                 "preprocessing": [
                                     {
